@@ -97,7 +97,7 @@ if __name__ == "__main__":
     )
     print(comparison)
     comparison = cv.compareHist(
-        histograms1[0]["full"], histograms1[1]["full"], cv.HISTCMP_CORREL
+        histograms1[0]["full"], histograms1[0]["half"], cv.HISTCMP_CORREL
     )
     print(comparison)
     print("========================================================")
