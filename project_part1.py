@@ -3,7 +3,16 @@ import cv2 as cv
 import csv
 
 
-def read_txt_file(txt_filename):
+def read_txt_file(txt_filename: str) -> list:
+    """
+    Reads a text file line-by-line into a list.
+
+    Args:
+        txt_filename: name/path of the textfile to be read
+
+    Returns:
+        A list of the contents of the textfile, line by line
+    """
     data = []
     with open(txt_filename, newline="") as txtfile:
         reader = csv.reader(txtfile, delimiter=",")
@@ -40,19 +49,21 @@ def display_rectangle(rectangle):
     cv.destroyAllWindows()
 
 
-def calculate_hist_img(image_filename, coordinates) -> list[tuple]:
+def calculate_hist_img(image_filename: str, coordinates: list[tuple]) -> list[dict]:
     """
-    Returns
-    [
-        (hist1_full, hist1_half), 
-        (hist2_full, hist2_half),
-        ...
-    ]
+    Calculates the histograms of rectangles generated from a give list of coordinates.
+
+    Args:
+        image_filename: string filename/path of the image file to be processed
+        coordinates: list of coordinates of all rectangles in tuple format (X, Y, width, height)
+
+    Returns:
+        List of full and half histograms for each rectangle
     """
     image = cv.imread(image_filename)
     assert image is not None, "file could not be read, check with os.path.exists()"
 
-    histograms = []
+    histograms: list[dict] = []
     for coord in coordinates:
         person_full = get_rectangle_using_coordinates(
             image, coord[0], coord[1], coord[2], coord[3]
@@ -63,8 +74,11 @@ def calculate_hist_img(image_filename, coordinates) -> list[tuple]:
         )  # half rectangle
         display_rectangle(person_half)
         histograms.append(
-            (get_hsv_histogram(person_full), get_hsv_histogram(person_half))
-        )  # i.e.: (HISTOGRAM_FULL, HISTOGRAM_HALF)
+            {
+                "full": get_hsv_histogram(person_full),
+                "half": get_hsv_histogram(person_half),
+            }
+        )
 
     return histograms
 
@@ -78,9 +92,13 @@ if __name__ == "__main__":
     # image2_coords = [(463, 251, 112, 206), (321, 269, 123, 189)]
 
     histograms1 = calculate_hist_img(test_image_filenames[0], image1_coords)
-    comparison = cv.compareHist(histograms1[0][0], histograms1[1][0], cv.HISTCMP_CORREL)
+    comparison = cv.compareHist(
+        histograms1[0]["full"], histograms1[1]["full"], cv.HISTCMP_CORREL
+    )
     print(comparison)
-    comparison = cv.compareHist(histograms1[0][0], histograms1[1][0], cv.HISTCMP_CORREL)
+    comparison = cv.compareHist(
+        histograms1[0]["full"], histograms1[1]["full"], cv.HISTCMP_CORREL
+    )
     print(comparison)
     print("========================================================")
     # # histograms2 = calculate_hist_img(test_image_filenames[1], image2_coords)
