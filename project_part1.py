@@ -36,7 +36,7 @@ def get_hsv_histogram(rectangle):
     returns its HSV histogram.
     """
     hsv = cv.cvtColor(rectangle, cv.COLOR_BGR2HSV)
-    histogram = cv.calcHist([hsv], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+    histogram = cv.calcHist([hsv], [0], None, [256],[0,256])
     return cv.normalize(histogram, histogram).flatten()
 
 
@@ -82,6 +82,18 @@ def calculate_hist_img(image_filename: str, coordinates: list[tuple]) -> list[di
 
     return histograms
 
+def read_text_file(file_path):
+    big_list = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            parts = line.strip().split(',')
+            filename = parts[0]
+            values = tuple(map(int, parts[1:]))
+            if filename not in big_list:
+                big_list[filename] = []
+            big_list[filename].append(values)
+    return big_list
+
 
 if __name__ == "__main__":
     # txt_filename = "labels.txt"  # Replace with the actual filename
@@ -89,18 +101,21 @@ if __name__ == "__main__":
     # print(data[0][0])
     test_image_filenames = ["1636738315284889400.png", "1636738357390407600.png"]
     image1_coords = [(232, 128, 70, 269), (375, 271, 156, 188), (333, 136, 85, 219)]
+
+    label_file = read_text_file('labels.txt')
+    print(label_file)
     # image2_coords = [(463, 251, 112, 206), (321, 269, 123, 189)]
 
-    histograms1 = calculate_hist_img(test_image_filenames[0], image1_coords)
-    comparison = cv.compareHist(
-        histograms1[0]["full"], histograms1[1]["full"], cv.HISTCMP_CORREL
-    )
-    print(comparison)
-    comparison = cv.compareHist(
-        histograms1[0]["full"], histograms1[0]["half"], cv.HISTCMP_CORREL
-    )
-    print(comparison)
-    print("========================================================")
+    # histograms1 = calculate_hist_img(test_image_filenames[0], image1_coords)
+    # comparison = cv.compareHist(
+    #     histograms1[0]["full"], histograms1[1]["full"], cv.HISTCMP_CORREL
+    # )
+    # print(comparison)
+    # comparison = cv.compareHist(
+    #     histograms1[0]["full"], histograms1[0]["half"], cv.HISTCMP_CORREL
+    # )
+    # print(comparison)
+    # print("========================================================")
     # # histograms2 = calculate_hist_img(test_image_filenames[1], image2_coords)
     # # histograms1 = calculate_hist_top_half_img(test_image_filenames[0], image1_coords)
     # print("========================================================")
