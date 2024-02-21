@@ -84,8 +84,7 @@ def read_text_file(file_path):
             values = tuple(map(int, parts[1:]))
             if filename not in big_list:
                 big_list[filename] = []
-            if int(values[3]) > 50: 
-                # only add images whose height is greater than 50
+            if values[3] > 50:
                 big_list[filename].append(values)
     return big_list
 
@@ -99,7 +98,7 @@ if __name__ == "__main__":
 
     # Read labels.txt file into list
     label_file: dict = read_text_file("labels.txt")
-    # print(label_file)
+    print(label_file["1636738315831747000"])
 
     # Calculate histogram of everyone in image 1
     histograms1 = calculate_hist_img(test_image_filenames[0], image1_coords)
@@ -112,7 +111,8 @@ if __name__ == "__main__":
         # image_name: 100000202020
         # values = [(463, 251, 112, 206), (321, 269, 123, 189)] 0, 1
         current_histograms = calculate_hist_img(
-            f"subsequence_cam1/1636738303879021100.png", values
+            f"subsequence_cam1/1636738315831747000.png",
+            [(334, 135, 105, 243), (247, 136, 89, 270), (380, 272, 143, 180)],
         )
 
         max_comparison = []
