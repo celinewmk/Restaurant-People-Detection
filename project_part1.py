@@ -1,26 +1,10 @@
 import numpy as np
 import cv2 as cv
 import csv
+import os
 
-
-def read_txt_file(txt_filename: str) -> list:
-    """
-    Reads a text file line-by-line into a list.
-
-    Args:
-        txt_filename: name/path of the textfile to be read
-
-    Returns:
-        A list of the contents of the textfile, line by line
-    """
-    data = []
-    with open(txt_filename, newline="") as txtfile:
-        reader = csv.reader(txtfile, delimiter=",")
-        for row in reader:
-            image_id, x, y, width, height = map(int, row)
-            data.append((image_id, x, y, width, height))
-    return data
-
+def read_image_if_exists(file_path):
+    return cv.imread(file_path) if os.path.exists(file_path) else None
 
 def get_rectangle_using_coordinates(image, x, y, width, height):
     """
@@ -60,19 +44,21 @@ def calculate_hist_img(image_filename: str, coordinates: list[tuple]) -> list[di
     Returns:
         List of full and half histograms for each rectangle
     """
-    image = cv.imread(image_filename)
-    assert image is not None, "file could not be read, check with os.path.exists()"
+    image = read_image_if_exists(image_filename)
+    # assert image is not None, "file could not be read, check with os.path.exists()"
+    if image is None:
+        return
 
     histograms: list[dict] = []
     for coord in coordinates:
         person_full = get_rectangle_using_coordinates(
             image, coord[0], coord[1], coord[2], coord[3]
         )  # full rectangle
-        display_rectangle(person_full)
+        # display_rectangle(person_full)
         person_half = get_rectangle_using_coordinates(
             image, coord[0], coord[1], coord[2], coord[3] // 2
         )  # half rectangle
-        display_rectangle(person_half)
+        # display_rectangle(person_half)
         histograms.append(
             {
                 "full": get_hsv_histogram(person_full),
@@ -98,7 +84,9 @@ def read_text_file(file_path):
             values = tuple(map(int, parts[1:]))
             if filename not in big_list:
                 big_list[filename] = []
-            big_list[filename].append(values)
+            if int(values[3]) > 50: 
+                # only add images whose height is greater than 50
+                big_list[filename].append(values)
     return big_list
 
 
@@ -111,20 +99,45 @@ if __name__ == "__main__":
 
     # Read labels.txt file into list
     label_file: dict = read_text_file("labels.txt")
-    print(label_file)
+    # print(label_file)
 
     # Calculate histogram of everyone in image 1
     histograms1 = calculate_hist_img(test_image_filenames[0], image1_coords)
-    
+
     person1_img1 = histograms1[0]  # person 1
     top_labels_person1 = []  # (filename, X, Y, W, H, comparison_value) top 100
 
     # Loop through labels.txt file to compare person 1 in image 1 with label
-    # for image_name, values in label_file.items():
+    for image_name, values in label_file.items():
+        # image_name: 100000202020
+        # values = [(463, 251, 112, 206), (321, 269, 123, 189)] 0, 1
+        current_histograms = calculate_hist_img(
+            f"subsequence_cam1/1636738303879021100.png", values
+        )
+
+        max_comparison = []
+
+        for current_hist in current_histograms:
+            # current_hist is of the full and the half rectangle
+
+            full_full = cv.compareHist(
+                person1_img1["full"], current_hist["full"], cv.HISTCMP_CORREL
+            )
+            full_half = cv.compareHist(
+                person1_img1["full"], current_hist["half"], cv.HISTCMP_CORREL
+            )
+            half_full = cv.compareHist(
+                person1_img1["half"], current_hist["full"], cv.HISTCMP_CORREL
+            )
+            half_half = cv.compareHist(
+                person1_img1["half"], current_hist["half"], cv.HISTCMP_CORREL
+            )
+            max_comparison.append(max(full_full, full_half, half_full, half_half))
+
+        print(max_comparison)
+        break
 
     # Need to associate histogram with rectangle/label
-        
-
 
     # image2_coords = [(463, 251, 112, 206), (321, 269, 123, 189)]
 
