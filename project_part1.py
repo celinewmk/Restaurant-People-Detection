@@ -108,18 +108,15 @@ if __name__ == "__main__":
 
     # Loop through labels.txt file to compare person 1 in image 1 with label
     for image_name, values in label_file.items():
-        # image_name: 100000202020
-        # values = [(463, 251, 112, 206), (321, 269, 123, 189)] 0, 1
-        current_histograms = calculate_hist_img(
-            f"subsequence_cam1/1636738315831747000.png",
-            [(334, 135, 105, 243), (247, 136, 89, 270), (380, 272, 143, 180)],
-        )
+        # test values
+        image_name = 1636738315831747000
+        values = [(334, 135, 105, 243), (247, 136, 89, 270), (380, 272, 143, 180)]
+        current_histograms = calculate_hist_img(f"subsequence_cam1/{image_name}.png",values)
 
         max_comparison = []
 
         for current_hist in current_histograms:
             # current_hist is of the full and the half rectangle
-
             full_full = cv.compareHist(
                 person1_img1["full"], current_hist["full"], cv.HISTCMP_CORREL
             )
@@ -134,8 +131,35 @@ if __name__ == "__main__":
             )
             max_comparison.append(max(full_full, full_half, half_full, half_half))
 
-        print(max_comparison)
+        ### testing with hardcoded values ##
+        max_in_image = max(max_comparison)
+        # index_of_max = max_comparison.index(max_in_image)
+        coord_of_max = values[max_comparison.index(max_in_image)]
+
+        #  code to verify the person: uncomment code below if u want to see the image
+        # image = read_image_if_exists("subsequence_cam1/1636738315831747000.png")
+        # person_found = get_rectangle_using_coordinates(
+        #     image,
+        #     coord_of_max[0],
+        #     coord_of_max[1],
+        #     coord_of_max[2],
+        #     coord_of_max[3],
+        # )
+        # display_rectangle(person_found)
+
+        # adding in top_labels_person1 as format (filename, X, Y, W, H, comparison_value)
+        top_labels_person1.append((
+            image_name, 
+            coord_of_max[0], 
+            coord_of_max[1], 
+            coord_of_max[2],
+            coord_of_max[3],
+            max_in_image
+        ))
+
         break
+
+    print(top_labels_person1)
 
     # Need to associate histogram with rectangle/label
 
