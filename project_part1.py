@@ -123,7 +123,7 @@ if __name__ == "__main__":
             f"subsequence_cam1/{image_name}.png", values
         )
 
-        if current_histograms is None:
+        if current_histograms is None or len(current_histograms) == 0:
             continue
 
         max_comparison = []
@@ -151,15 +151,15 @@ if __name__ == "__main__":
 
         #  code to verify the person: uncomment code below if u want to see the image
         # image = read_image_if_exists("subsequence_cam1/1636738315831747000.png")
-        image = read_image_if_exists(f"subsequence_cam1/{image_name}.png")
-        person_found = get_rectangle_using_coordinates(
-            image,
-            coord_of_max[0],
-            coord_of_max[1],
-            coord_of_max[2],
-            coord_of_max[3],
-        )
-        display_rectangle(person_found)
+        # image = read_image_if_exists(f"subsequence_cam1/{image_name}.png")
+        # person_found = get_rectangle_using_coordinates(
+        #     image,
+        #     coord_of_max[0],
+        #     coord_of_max[1],
+        #     coord_of_max[2],
+        #     coord_of_max[3],
+        # )
+        # display_rectangle(person_found)
 
         # adding in top_labels_person1 as format (filename, X, Y, W, H, comparison_value)
         top_labels_person1.append(
@@ -175,7 +175,9 @@ if __name__ == "__main__":
 
         # break
 
-    print(top_labels_person1)
+    # print(top_labels_person1)
+    # for label in top_labels_person1:
+    #     print(label)
 
     # Need to associate histogram with rectangle/label
 
