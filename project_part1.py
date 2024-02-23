@@ -4,7 +4,7 @@ import csv
 import os
 
 
-def read_image_if_exists(file_path: str) -> cv.typing.MatLike | None:
+def read_image_if_exists(file_path: str) -> cv.typing.MatLike:
     """
     Returns the image read using OpenCV's imread, if the file exists.
     If not, returns None.
@@ -41,7 +41,7 @@ def display_rectangle(rectangle):
     cv.destroyAllWindows()
 
 
-def calculate_hist_img(image_filename: str, coordinates: list[tuple]) -> list[dict] | None:
+def calculate_hist_img(image_filename: str, coordinates: list[tuple]) -> list[dict]:
     """
     Calculates the HSV histograms of rectangles generated from a given list of coordinates.
 
@@ -62,11 +62,9 @@ def calculate_hist_img(image_filename: str, coordinates: list[tuple]) -> list[di
         person_full = get_rectangle_using_coordinates(
             image, coord[0], coord[1], coord[2], coord[3]
         )  # full rectangle
-        # display_rectangle(person_full)
         person_half = get_rectangle_using_coordinates(
             image, coord[0], coord[1], coord[2], coord[3] // 2
         )  # half rectangle
-        # display_rectangle(person_half)
         histograms.append(
             {
                 "full": get_normalized_hsv_histogram(person_full),
@@ -91,34 +89,51 @@ def read_text_file(file_path) -> dict[str, list[tuple[int]]]:
         for line in file:
             parts = line.strip().split(",")
             filename = parts[0]
-            values = tuple(map(int, parts[1:]))
-            if filename not in big_list:
-                big_list[filename] = []
-            if values[3] > 50:
-                big_list[filename].append(values)
+            if filename != "1636738315284889400" and filename != "1636738357390407600":
+                values = tuple(map(int, parts[1:]))
+                if filename not in big_list:
+                    big_list[filename] = []
+                if values[3] > 130:
+                    big_list[filename].append(values)
     return big_list
 
 
-if __name__ == "__main__":
+def save_results_to_text(data, person_name):
+    results_folder = "results"
+    if not os.path.exists(results_folder):
+        os.makedirs(results_folder)
 
-    test_image_filenames = ["1636738315284889400.png", "1636738357390407600.png"]
-    image1_coords = [(232, 128, 70, 269), (375, 271, 156, 188), (333, 136, 85, 219)]
+    with open(os.path.join(results_folder, f"output_{person_name}.txt"), "w") as file:
+        # Loop through the array
+        for element in data:
+            # Write each element followed by a newline character
+            file.write(f"{element}\n")
 
-    # Read labels.txt file into list
-    label_file = read_text_file("labels.txt")
-    # print(label_file["1636738315831747000"])
 
-    # Calculate histogram of everyone in image 1
-    histograms1 = calculate_hist_img(test_image_filenames[0], image1_coords)
+def save_100_images(best_100_matches, person_name):
+    output_folder = os.path.join("results", str(person_name))
+    os.makedirs(output_folder, exist_ok=True)
 
-    person1_img1 = histograms1[0]  # person 1
-    top_labels_person1 = []  # (filename, X, Y, W, H, comparison_value) top 100
+    for i in range(len(best_100_matches)):
+        image_name = best_100_matches[i][0]
+        image = read_image_if_exists(f"subsequence_cam1/{image_name}.png")
+        person_found = get_rectangle_using_coordinates(
+            image,
+            best_100_matches[i][1],
+            best_100_matches[i][2],
+            best_100_matches[i][3],
+            best_100_matches[i][4],
+        )
 
-    # Loop through labels.txt file to compare hists of person 1 in image 1 with hists of labels
+        # Save the rectangle as a PNG image
+        output_file = os.path.join(output_folder, f"{image_name}.png")
+        cv.imwrite(output_file, person_found)
+
+
+def find_100_best_matches(person, person_name):
+    top_labels_person = []  # (filename, X, Y, W, H, comparison_value) top 100
     for image_name, values in label_file.items():
-        # test values
-        # image_name = 1636738315831747000
-        # values = [(334, 135, 105, 243), (247, 136, 89, 270), (380, 272, 143, 180)]
+
         current_histograms = calculate_hist_img(
             f"subsequence_cam1/{image_name}.png", values
         )
@@ -131,38 +146,25 @@ if __name__ == "__main__":
         for current_hist in current_histograms:
             # current_hist is the full and half histograms of the current rectangle
             full_full = cv.compareHist(
-                person1_img1["full"], current_hist["full"], cv.HISTCMP_CORREL
+                person["full"], current_hist["full"], cv.HISTCMP_CORREL
             )
             full_half = cv.compareHist(
-                person1_img1["full"], current_hist["half"], cv.HISTCMP_CORREL
+                person["full"], current_hist["half"], cv.HISTCMP_CORREL
             )
             half_full = cv.compareHist(
-                person1_img1["half"], current_hist["full"], cv.HISTCMP_CORREL
+                person["half"], current_hist["full"], cv.HISTCMP_CORREL
             )
             half_half = cv.compareHist(
-                person1_img1["half"], current_hist["half"], cv.HISTCMP_CORREL
+                person["half"], current_hist["half"], cv.HISTCMP_CORREL
             )
             max_comparison.append(max(full_full, full_half, half_full, half_half))
 
         ### testing with hardcoded values ##
         max_in_image = max(max_comparison)
-        # index_of_max = max_comparison.index(max_in_image)
         coord_of_max = values[max_comparison.index(max_in_image)]
 
-        #  code to verify the person: uncomment code below if u want to see the image
-        # image = read_image_if_exists("subsequence_cam1/1636738315831747000.png")
-        # image = read_image_if_exists(f"subsequence_cam1/{image_name}.png")
-        # person_found = get_rectangle_using_coordinates(
-        #     image,
-        #     coord_of_max[0],
-        #     coord_of_max[1],
-        #     coord_of_max[2],
-        #     coord_of_max[3],
-        # )
-        # display_rectangle(person_found)
-
         # adding in top_labels_person1 as format (filename, X, Y, W, H, comparison_value)
-        top_labels_person1.append(
+        top_labels_person.append(
             (
                 image_name,
                 coord_of_max[0],  # x
@@ -173,22 +175,56 @@ if __name__ == "__main__":
             )
         )
 
-        # break
+    sorted_data = sorted(top_labels_person, key=lambda x: x[5], reverse=True)
+    best_100_matches = sorted_data[:100]
+    save_results_to_text(best_100_matches, person_name)
+    save_100_images(best_100_matches, person_name)
 
-    # print(top_labels_person1)
-    # for label in top_labels_person1:
-    #     print(label)
 
-    # Need to associate histogram with rectangle/label
+if __name__ == "__main__":
 
-    # image2_coords = [(463, 251, 112, 206), (321, 269, 123, 189)]
+    test_image_filenames = ["1636738315284889400.png", "1636738357390407600.png"]
+    # Read labels.txt file into list
+    label_file = read_text_file("labels.txt")
 
-    # histograms1 = calculate_hist_img(test_image_filenames[0], image1_coords)
-    # comparison = cv.compareHist(
-    #     histograms1[0]["full"], histograms1[1]["full"], cv.HISTCMP_CORREL
-    # )
-    # print(comparison)
-    # comparison = cv.compareHist(
-    #     histograms1[0]["full"], histograms1[0]["half"], cv.HISTCMP_CORREL
-    # )
-    # print(comparison)
+    image1_coords = [(232, 128, 70, 269), (375, 271, 156, 188), (333, 136, 85, 219)]
+    image2_coords = [(463, 251, 112, 206), (321, 269, 123, 189)]
+
+    # Calculate histogram of everyone in image
+    histograms1 = calculate_hist_img(test_image_filenames[0], image1_coords)
+    histograms2 = calculate_hist_img(test_image_filenames[1], image2_coords)
+
+    # image 1
+    print(f"======================= Image 1 ====================")
+    print(f"[+] Calculating results for person in black...")
+    find_100_best_matches(
+        histograms1[0], "person_in_black_img1"
+    )  # person in black jacket
+
+    print(f"[+] Calculating results for person with a cap...")
+    find_100_best_matches(histograms1[1], "person_with_cap_img1")  # person with a cap
+
+    print(f"[+] Calculating results for person in pink...")
+    find_100_best_matches(
+        histograms1[2], "person_in_pink_img1"
+    )  # person in pink jacket
+
+    print(
+        f"The 100 best matches have been found for each person in image 1 (1636738315284889400.png).\nPlease see results folder"
+    )
+
+    # image 2
+    print(f"======================= Image 2 ====================")
+    print(f"[+] Calculating results for person in pink...")
+    find_100_best_matches(
+        histograms2[0], "person_in_pink_img2"
+    )  # person in pink jacket
+
+    print(f"[+] Calculating results for person in black...")
+    find_100_best_matches(
+        histograms2[1], "person_in_black_img2"
+    )  # person in black jacket
+
+    print(
+        f"The 100 best matches have been found for each person in image 2 (1636738357390407600.png).\nPlease see results folder"
+    )
