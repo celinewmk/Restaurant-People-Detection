@@ -159,7 +159,6 @@ def find_100_best_matches(person, person_name):
             )
             max_comparison.append(max(full_full, full_half, half_full, half_half))
 
-        ### testing with hardcoded values ##
         max_in_image = max(max_comparison)
         coord_of_max = values[max_comparison.index(max_in_image)]
 
