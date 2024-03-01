@@ -1,13 +1,16 @@
-import numpy as np
 import cv2 as cv
-import csv
 import os
 
 
 def read_image_if_exists(file_path: str) -> cv.typing.MatLike:
     """
-    Returns the image read using OpenCV's imread, if the file exists.
-    If not, returns None.
+    Reads an image file given its path.
+
+    Args:
+        file_path: path to image file
+
+    Returns:
+        The OpenCV-parsed image, if the file exists. Otherwise, returns None.
     """
     return cv.imread(file_path) if os.path.exists(file_path) else None
 
@@ -16,27 +19,55 @@ def get_rectangle_using_coordinates(
     image: cv.typing.MatLike, x: int, y: int, width: int, height: int
 ) -> cv.typing.MatLike:
     """
-    Given an image, returns a new image that is only the rectangle portion
-    specified by x, y, width, height.
+    Given an image, returns a new image that is only the rectangle cutout
+    portion specified by x, y, width, height.
+
+    Args:
+        image: an image parsed by OpenCV's imread function
+        x: x integer coordinate of the image's top left corner
+        y: y integer coordinate of the image's top left corner
+        width: integer value denoting the image's horizontal width
+        height: integer value denoting the image's vertical height
+
+    Returns:
+        An OpenCV-parsed image.
     """
     return image[y : y + height, x : x + width]
 
 
 def get_normalized_hsv_histogram(rectangle: cv.typing.MatLike) -> cv.typing.MatLike:
     """
-    Given an image (expected to be the rectangle portion of the original image),
+    Given an OpenCV-parsed image (expected to be the rectangle portion of the original image),
     returns its normalized HSV histogram.
+
+    We normalize the histogram so that they can be compared in terms of their distributions,
+    regardless of factors such as image size, brightness, or overall colour intensity.
+
+    For instance, a red pixel could be highly saturated in one image, but not as saturated
+    in another image, due to various differences in size and brightness. By normalizing
+    the histogram, we make remove those differences to make the comparisons more accurate.
+
+    Args:
+        rectangle: an image parsed by OpenCV's imread function
+
+    Returns:
+        The normalized HSV histogram of the given image.
     """
     hsv = cv.cvtColor(rectangle, cv.COLOR_BGR2HSV)
     histogram = cv.calcHist([hsv], [0], None, [256], [0, 256])
     return cv.normalize(histogram, histogram).flatten()
 
 
-def display_rectangle(rectangle):
+def display_rectangle(image: cv.typing.MatLike, image_title: str = "Image"):
     """
-    Display rectangle (usually a person) on the screen for testing purposes.
+    Displays an image on a new window for visualization and testing.
+
+    Example: Can be used to view a rectangle cutout of a person.
+
+    Args:
+        An OpenCV-parsed image.
     """
-    cv.imshow("Image", rectangle)
+    cv.imshow(image_title, image)
     cv.waitKey(0)
     cv.destroyAllWindows()
 
@@ -50,10 +81,9 @@ def calculate_hist_img(image_filename: str, coordinates: list[tuple]) -> list[di
         coordinates: list of coordinates of all rectangles in tuple format (X, Y, width, height)
 
     Returns:
-        List of full and half histograms for each rectangle
+        List of full and half histograms for each rectangle. None if the image does not exist.
     """
     image = read_image_if_exists(image_filename)
-    # assert image is not None, "file could not be read, check with os.path.exists()"
     if image is None:
         return None
 
@@ -75,30 +105,53 @@ def calculate_hist_img(image_filename: str, coordinates: list[tuple]) -> list[di
     return histograms
 
 
-def read_text_file(file_path) -> dict[str, list[tuple[int]]]:
+def read_text_file(file_path: str) -> dict[str, list[tuple[int]]]:
     """
-    Returns
+    Reads the text file containing labels representing the rectangle cutouts
+    of a person in an image, parses the file and returns a custom dictionary
+    containing the same data in the text file.
+
+    Format of the dictionary:
+    ```
     {
         "filename1": [(X, Y, W, H), (X, Y, W, H), (X, Y, W, H)],
         "filename2": [(X, Y, W, H), (X, Y, W, H)],
         ...
     }
+    ```
+
+    Args:
+        file_path: path to the labels text file
+
+    Returns:
+        The contents of the labels text file as a custom dictionary.
     """
     big_list: dict[str, list[tuple[int]]] = {}
     with open(file_path, "r") as file:
         for line in file:
             parts = line.strip().split(",")
             filename = parts[0]
+
+            # Ignores the two tests images found in the labels.txt file
             if filename != "1636738315284889400" and filename != "1636738357390407600":
                 values = tuple(map(int, parts[1:]))
                 if filename not in big_list:
                     big_list[filename] = []
+
+                # Only append images whose heights are sufficiently large (i.e. 130 pixels)
                 if values[3] > 130:
                     big_list[filename].append(values)
     return big_list
 
 
-def save_results_to_text(data, person_name):
+def save_results_to_text(data: list, person_name: str):
+    """
+    Creates a "results" folder in the project directory and saves the resulting
+    100 best matching frame images into a text file stored in the folder.
+
+    Args:
+        data: resulting list of the best 100 matching frames after HSV histogram comparison
+    """
     results_folder = "results"
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
@@ -110,7 +163,14 @@ def save_results_to_text(data, person_name):
             file.write(f"{element}\n")
 
 
-def save_100_images(best_100_matches, person_name):
+def save_100_images(best_100_matches: list, person_name: str):
+    """
+    Creates a "results" folder in the project directory and saves the resulting
+    100 best matching frame images as PNG files stored in the folder.
+
+    Args:
+        data: resulting list of the best 100 matching frames after HSV histogram comparison
+    """
     output_folder = os.path.join("results", str(person_name))
     os.makedirs(output_folder, exist_ok=True)
 
@@ -130,7 +190,14 @@ def save_100_images(best_100_matches, person_name):
         cv.imwrite(output_file, person_found)
 
 
-def find_100_best_matches(person, person_name):
+def find_100_best_matches(person: list[dict], person_name: str):
+    """
+    Finds the 100 image frames from 1000+ test image files (8600+ labelled frames) that 
+    best match a given person's test image frame. Saves the results to a results folder.
+
+    Args:
+        data: resulting list of the best 100 matching frames after HSV histogram comparison
+    """
     top_labels_person = []  # (filename, X, Y, W, H, comparison_value) top 100
     for image_name, values in label_file.items():
 
