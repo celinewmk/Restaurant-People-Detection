@@ -27,3 +27,10 @@ Steps to add the test data in the right places, if it is not already there.
     - This file contains the labelled rectangle cutouts of the people in each frame in the video
 - Place the `subsequence_cam1` folder in the root of the project folder
     - This folder contains the PNG images representing each frame of the video
+
+Folder structure
+- Red: Required input data
+- Green: Expected output folder
+
+![image](https://github.com/celinewmk/Restaurant-People-Detection/assets/67518620/2020ba63-497f-4390-b3de-5af86f85fd07)
+
