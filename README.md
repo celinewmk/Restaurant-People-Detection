@@ -15,8 +15,14 @@ Setup environment
     - `source venv/lib/activate` on UNIX
 - Install dependencies
     - `pip install -r requirements.txt`
-- Execute the code
+
+Run the program
+- To execute the code in `bounding_box`
+    - `cd bounding_box` to navigate to the folder
     - `python project_part1.py`
+- To execute the code in `cnn`
+    - `cd cnn` to navigate to the folder
+    - `python main.py`
 
 ## Part 1: Bounding Box
 In this first part of the project, we compare each person's HSV histogram in the two given test images `1636738315284889400.png` and `1636738357390407600.png` to the HSV histogram of every single person in each image frame in the `subsequence_cam1` folder. We measure the accuracy of our experiment by selecting the top 100 results by their HSV comparison value (1 being the highest, 0 being the lowest), and verifying our results by manually checking each resulting image against the person it is supposed to have recognized.
@@ -50,7 +56,8 @@ Folder structure
 - Red: Required input data
 - Green: Expected output folder
 
-![image](https://github.com/celinewmk/Restaurant-People-Detection/assets/67518620/2020ba63-497f-4390-b3de-5af86f85fd07)
+![image](https://github.com/celinewmk/Restaurant-People-Detection/assets/67518620/8db93817-cc5b-47af-bda1-541edd6a04df)
+
 
 
 ## Part 2: Convolutional Neural Network (CNN)
