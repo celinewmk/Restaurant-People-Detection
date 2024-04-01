@@ -1,7 +1,7 @@
 import cv2 as cv
 import numpy as np
 import os
-from PIL import Image
+from PIL import Image, ImageOps
 from utils import model, tools
 import torch
 
@@ -42,11 +42,7 @@ def get_normalized_hsv_histogram(rectangle: cv.typing.MatLike) -> cv.typing.MatL
     return cv.normalize(histogram, histogram).flatten()
 
 
-def get_normalized_hsv_histogram_np(mask_3d):
-    pass
-
-
-def calculate_hist_img(image_filename: str) -> list[dict]:
+def calculate_hist_img_filename(image_filename: str) -> list[dict]:
     """
     Calculates the HSV histograms of rectangles generated from a given list of coordinates.
 
@@ -84,32 +80,40 @@ def calculate_hist_img(image_filename: str) -> list[dict]:
     return histograms
 
 
-def draw_bounding_boxes(image, mask_tensor):
-    # Convert torch tensor to numpy array if necessary
-    mask = mask_tensor.numpy() if isinstance(mask_tensor, torch.Tensor) else mask_tensor
+def calculate_hist_img(image: Image) -> list[dict]:
+    """
+    Calculates the HSV histograms of the full and half portions of the given image.
 
-    # Ensure mask is binary (0 or 255)
-    mask_binary = (mask > 0).astype(np.uint8) * 255
+    Args:
+        image: PIL image object to be processed
 
-    # Check if the mask is empty
-    if np.sum(mask_binary) == 0:
-        print("Warning: Empty mask. Skipping contour detection.")
-        return image
+    Returns:
+        List of full and half histograms for the image.
+    """
+    # Convert the PIL image to a numpy array
+    image_np = np.array(image)
 
-    # Find contours in the binary mask
-    contours, _ = cv.findContours(mask_binary, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    # Get the dimensions of the image
+    height, width = image_np.shape[:2]
 
-    # Draw bounding boxes on the original image
-    for contour in contours:
-        # Get bounding box coordinates
-        x, y, w, h = cv.boundingRect(contour)
-        # Draw bounding box on the original image
-        cv.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    # Calculate the coordinates for cropping (top half)
+    start_row, start_col = 0, 0
+    end_row, end_col = int(height / 2), width
 
-    return image
+    # Crop the full and half portions of the image
+    person_full = image_np
+    person_half = image_np[start_row:end_row, start_col:end_col]
+
+    # Calculate the histograms
+    histograms = {
+        "full": get_normalized_hsv_histogram(person_full),
+        "half": get_normalized_hsv_histogram(person_half),
+    }
+
+    return histograms
 
 
-def draw_bounding_boxes(image, mask_tensor):
+def draw_bounding_boxes(image: np.ndarray, mask_tensor: torch.Tensor):
     """
     Draws bounding boxes around detected objects based on the mask tensor on the provided image.
 
@@ -147,6 +151,91 @@ def draw_bounding_boxes(image, mask_tensor):
     return image
 
 
+def fit_to_person(person_image):
+    # Convert image to grayscale
+    person_image_gray = person_image.convert("L")
+
+    # Get bounding box of person
+    bbox = person_image_gray.getbbox()
+
+    if bbox:
+        # Calculate width and height of bounding box
+        width = bbox[2] - bbox[0]
+        height = bbox[3] - bbox[1]
+
+        # Create a new blank image with the same size as the bounding box
+        new_image = Image.new("RGB", (width, height), color="black")
+
+        # Paste the person image onto the new image, aligning it to the top-left corner
+        new_image.paste(person_image.crop(bbox), (0, 0))
+
+        return new_image
+    else:
+        # No person found in the image, return None
+        return None
+
+
+def extract_people_from_masks(original_image, masks) -> list[dict]:
+    """
+    Applies each mask to the original image and extracts the result as a new image.
+
+    Args:
+        original_image (numpy.ndarray): The original image from which to extract people.
+        masks (list of numpy.ndarray): A list of masks, where each mask corresponds to a person.
+
+    Returns:
+        List of PIL.Image: A list of image objects, each containing a person extracted from the original image.
+    """
+    # Get OG image and all masks.
+    # Apply each mask on the image and extracted each person out as their own image
+    # We fit the size of each image to the height/width of each person
+    # We removed the remaining black background from each image
+    # We return the list of images, each representing a cutout of a person
+    people_images: list[dict] = []
+
+    for mask in masks:
+        # Make sure the mask is binary and has the same dimensions as the original image
+        mask_binary = mask[0].cpu().numpy() > 0.5
+        mask_binary = np.repeat(mask_binary[:, :, np.newaxis], 3, axis=2)
+
+        # Apply the mask to the original image
+        person_cutout = np.where(mask_binary, original_image, 0)
+
+        # Convert the cutout to a PIL image
+        person_image = Image.fromarray(person_cutout.astype("uint8"))
+        person_image = fit_to_person(person_image)
+
+        # ----- Remove black background from image
+        # Convert PIL image to NumPy array
+        person_image = np.array(person_image)
+
+        # Convert image to image gray
+        tmp = cv.cvtColor(person_image, cv.COLOR_BGR2GRAY)
+
+        # Applying thresholding technique
+        _, alpha = cv.threshold(tmp, 0, 255, cv.THRESH_BINARY)
+
+        # Using cv2.split() to split channels
+        # of coloured image
+        b, g, r = cv.split(person_image)
+
+        # Making list of Red, Green, Blue
+        # Channels and alpha
+        rgba = [b, g, r, alpha]
+
+        # Using cv2.merge() to merge rgba
+        # into a coloured/multi-channeled image
+        dst = cv.merge(rgba, 4)
+        bob = Image.fromarray(dst.astype("uint8"))
+
+        # bob.show()
+        # exit()
+
+        people_images.append({"person_image": bob, "mask": mask})
+
+    return people_images
+
+
 def find_100_best_matches(person: list[dict], person_name: str, folder_name: str):
     """
     Finds the 100 image frames from 1000+ test image files (8600+ labelled frames) that
@@ -166,7 +255,7 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
             counter += 1
 
             # image_name = file
-            image_name = "1637433795047605000.png"
+            image_name = "1637433787672853500.png"
             print(f"===========================================================")
             print(f"Segmenting {counter}: {image_name}")
 
@@ -183,44 +272,31 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
                 output = seg_model([transformed_img])
 
             # Traiter le résultat de l'inférence
-            result = tools.process_inference(output, image)
+            # result = tools.process_inference(output, image)
+            list_of_masks: list = tools.process_inference(output, image)
+            people_imgs = extract_people_from_masks(image, list_of_masks)
+
+            all_histograms: list = []
+
+            for person_img in people_imgs:
+                # person_img.show()
+                all_histograms.append(calculate_hist_img(person_img["person_image"]))
 
             # Max comparison value of the test person with all other people in the image
             max_comparison = []
 
-            for mask in result:
-
-                # Histogram of full mask
-                # histogram_full = cv.calcHist(
-                #     [np.array(mask)], [0], None, [256], [0, 256]
-                # )
-                histogram_full = get_normalized_hsv_histogram_np(mask)
-
-                # Histogram of half mask
-                height = mask.shape[0]
-                # Slice the top half of the mask
-                top_half_mask = mask[0 : height // 2, :]
-                # histogram_half = cv.calcHist(
-                #     [np.array(top_half_mask)], [0], None, [256], [0, 256]
-                # )
-                print("-------------------------------------------------")
-                print(top_half_mask)
-                print(top_half_mask.shape)
-                print(np.unique(top_half_mask))
-                print("-------------------------------------------------")
-                histogram_half = get_normalized_hsv_histogram_np(top_half_mask)
-
+            for hist in all_histograms:
                 full_full = cv.compareHist(
-                    person["full"], histogram_full, cv.HISTCMP_CORREL
+                    person["full"], hist["full"], cv.HISTCMP_CORREL
                 )
                 full_half = cv.compareHist(
-                    person["full"], histogram_half, cv.HISTCMP_CORREL
+                    person["full"], hist["half"], cv.HISTCMP_CORREL
                 )
                 half_full = cv.compareHist(
-                    person["half"], histogram_full, cv.HISTCMP_CORREL
+                    person["half"], hist["full"], cv.HISTCMP_CORREL
                 )
                 half_half = cv.compareHist(
-                    person["half"], histogram_half, cv.HISTCMP_CORREL
+                    person["half"], hist["half"], cv.HISTCMP_CORREL
                 )
                 max_comparison.append(max(full_full, full_half, half_full, half_half))
 
@@ -228,31 +304,23 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
             max_in_image = max(max_comparison)
             print(f"-- {max_in_image}")
 
-            best_mask = result[max_comparison.index(max_in_image)]
-            print(f"Mask ---- {best_mask}")
-            print(type(best_mask))
+            best_person = people_imgs[max_comparison.index(max_in_image)]
+            # best_person["mask"]
+            # best_person["person_image"].show()
 
-            # Load the original image and the mask
-            original_image = cv.imread(f"{source_path_dir}/{image_name}")
-
-            # Assuming your mask is a torch.Tensor object named mask_tensor
-            # Draw bounding boxes on the original image using the mask
-            image_with_boxes = draw_bounding_boxes(original_image, best_mask)
-
-            # # Display the result
-            # cv.imshow("Image with Bounding Boxes", image_with_boxes)
-            # cv.waitKey(0)
-            # cv.destroyAllWindows()
-
+            # image.show()
+            img_bounding_box_np = draw_bounding_boxes(
+                np.array(image), best_person["mask"]
+            )
+            img_bounding_box = Image.fromarray(img_bounding_box_np.astype(np.uint8))
             if not os.path.exists(f"{output_path_dir}/{person_name}"):
                 os.makedirs(f"{output_path_dir}/{person_name}")
-            # Assuming image_with_boxes is the image returned by draw_bounding_boxes
-            cv.imwrite(
-                f"{output_path_dir}/{person_name}/{image_name}", image_with_boxes
+            img_bounding_box.save(
+                os.path.join(f"{output_path_dir}/{person_name}", image_name)
             )
-            # result.save(os.path.join(output_path_dir, image_with_boxes))
-
             # result.show()
+            # img_with_bounding_box.show()
+
         else:
             break
 
@@ -271,15 +339,16 @@ if __name__ == "__main__":
 
     # Calculate histogram of everyone in image
     histograms = [
-        calculate_hist_img(test_image_filenames[0]),
-        calculate_hist_img(test_image_filenames[1]),
-        calculate_hist_img(test_image_filenames[2]),
-        calculate_hist_img(test_image_filenames[3]),
-        calculate_hist_img(test_image_filenames[4]),
+        calculate_hist_img_filename(test_image_filenames[0]),
+        calculate_hist_img_filename(test_image_filenames[1]),
+        calculate_hist_img_filename(test_image_filenames[2]),
+        calculate_hist_img_filename(test_image_filenames[3]),
+        calculate_hist_img_filename(test_image_filenames[4]),
     ]
 
-    print(f"[+] Calculating results for person 1...")
-    find_100_best_matches(histograms[0], "person_1", "cam0")
+    for i in range(0, 5):
+        print(f"[+] Calculating results for person {i+1}...")
+        find_100_best_matches(histograms[i], f"person_{i+1}", "cam0")
 
     # print(f"[+] Calculating results for person 2...")
     # find_100_best_matches(histograms1[1], "person_with_cap_img1")
