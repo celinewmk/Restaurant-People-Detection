@@ -76,3 +76,10 @@ Our goal is to detect each of the 5 people the camera footage.
     - Once we have the exact cutouts of each person, we represent their full body and the upper half of their body with normalized HSV histograms.
 - Person detection
     - We detect each of the 5 given people in the camera footage frames by comparing their HSV histograms with the HSV histograms of every recognized figure/person in the camera footage.
+ 
+### Output
+The following is an example of Person 1 (on the left) being detected in the image `1637433787672853500.png` (on the right).
+
+![image](https://github.com/celinewmk/Restaurant-People-Detection/assets/67518620/afbe9f04-28db-4e52-8760-00d863cc59e2)
+
+
