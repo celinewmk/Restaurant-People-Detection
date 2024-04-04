@@ -67,11 +67,6 @@ def calculate_hist_img_filename(image_filename: str) -> list[dict]:
     person_full = image
     person_half = image[start_row:end_row, start_col:end_col]
 
-    # cv.imshow('Original Image', person_full)
-    # cv.imshow('Cropped Image (Top Half)', person_half)
-    # cv.waitKey(0)
-    # cv.destroyAllWindows()
-
     histograms = {
         "full": get_normalized_hsv_histogram(person_full),
         "half": get_normalized_hsv_histogram(person_half),
@@ -205,32 +200,35 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
         person_image = Image.fromarray(person_cutout.astype("uint8"))
         person_image = fit_to_person(person_image)
 
-        # ----- Remove black background from image
-        # Convert PIL image to NumPy array
-        person_image = np.array(person_image)
+        image_height = person_image.height
+        print("Image height: ", image_height)
 
-        # Convert image to image gray
-        tmp = cv.cvtColor(person_image, cv.COLOR_BGR2GRAY)
+        if image_height > 120:
+            # ----- Remove black background from image
+            # Convert PIL image to NumPy array
+            person_image = np.array(person_image)
 
-        # Applying thresholding technique
-        _, alpha = cv.threshold(tmp, 0, 255, cv.THRESH_BINARY)
+            # Convert image to image gray
+            tmp = cv.cvtColor(person_image, cv.COLOR_BGR2GRAY)
 
-        # Using cv2.split() to split channels
-        # of coloured image
-        b, g, r = cv.split(person_image)
+            # Applying thresholding technique
+            _, alpha = cv.threshold(tmp, 0, 255, cv.THRESH_BINARY)
 
-        # Making list of Red, Green, Blue
-        # Channels and alpha
-        rgba = [b, g, r, alpha]
+            # Using cv2.split() to split channels
+            # of coloured image
+            b, g, r = cv.split(person_image)
 
-        # Using cv2.merge() to merge rgba
-        # into a coloured/multi-channeled image
-        dst = cv.merge(rgba, 4)
-        image = Image.fromarray(dst.astype("uint8"))
+            # Making list of Red, Green, Blue
+            # Channels and alpha
+            rgba = [b, g, r, alpha]
 
-        # exit()
+            # Using cv2.merge() to merge rgba
+            # into a coloured/multi-channeled image
+            dst = cv.merge(rgba, 4)
+            image = Image.fromarray(dst.astype("uint8"))
 
-        people_images.append({"person_image": image, "mask": mask})
+            # exit()
+            people_images.append({"person_image": image, "mask": mask})
 
     return people_images
 
@@ -242,7 +240,7 @@ def save_100_images(best_100_matches: list, person_name: str):
     Args:
         data: resulting list of the best 100 matching frames after HSV histogram comparison
     """
-    output_folder = os.path.join("examples/results/cam0/", f"{str(person_name)}_100_best")
+    output_folder = os.path.join("examples/100_best/cam0/", str(person_name))
     os.makedirs(output_folder, exist_ok=True)
 
     for match in best_100_matches:
@@ -253,9 +251,7 @@ def save_100_images(best_100_matches: list, person_name: str):
         # Save the rectangle as a PNG image
         output_file = os.path.join(output_folder, image_name)
 
-        image.save(
-            output_folder
-        )
+        image.save(output_file)
 
 
 def find_100_best_matches(person: list[dict], person_name: str, folder_name: str):
@@ -273,7 +269,7 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
     counter = 0
     top_100_best = []
     for file in os.listdir(source_path_dir):
-        if file.endswith(".png"):
+        if file.endswith(".png") and counter < 1:
             counter += 1
             # image_name = file
             image_name = file
@@ -348,7 +344,7 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
 
     sorted_data = sorted(top_100_best, key=lambda x: x[1], reverse=True)
     best_100_matches = sorted_data[:100]
-    save_100_images(top_100_best, person_name)
+    save_100_images(best_100_matches, person_name)
 
 
 if __name__ == "__main__":
