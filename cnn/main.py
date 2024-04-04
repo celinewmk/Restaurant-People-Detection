@@ -1,9 +1,9 @@
 import cv2 as cv
 import numpy as np
 import os
-from PIL import Image, ImageOps
-from utils import model, tools
 import torch
+from PIL import Image
+from utils import model, tools
 
 
 def read_image_if_exists(file_path: str) -> cv.typing.MatLike:
@@ -42,16 +42,15 @@ def get_normalized_hsv_histogram(rectangle: cv.typing.MatLike) -> cv.typing.MatL
     return cv.normalize(histogram, histogram).flatten()
 
 
-def calculate_hist_img_filename(image_filename: str) -> list[dict]:
+def calculate_hist_img_filename(image_filename: str) -> dict[str, cv.typing.MatLike]:
     """
-    Calculates the HSV histograms of rectangles generated from a given list of coordinates.
+    Calculates the normalized full/half HSV histograms of a given image by its filename.
 
     Args:
         image_filename: string filename/path of the image file to be processed
-        coordinates: list of coordinates of all rectangles in tuple format (X, Y, width, height)
 
     Returns:
-        List of full and half histograms for each rectangle. None if the image does not exist.
+        Dictionary of the full and half histogram of the image. None if the image does not exist.
     """
     image = read_image_if_exists(image_filename)
     if image is None:
@@ -75,15 +74,15 @@ def calculate_hist_img_filename(image_filename: str) -> list[dict]:
     return histograms
 
 
-def calculate_hist_img(image: Image) -> list[dict]:
+def calculate_hist_img(image: Image) -> dict[str, cv.typing.MatLike]:
     """
-    Calculates the HSV histograms of the full and half portions of the given image.
+    Calculates the normalized full/half HSV histograms of a given image.
 
     Args:
-        image: PIL image object to be processed
+        image: PIL Image object to be processed
 
     Returns:
-        List of full and half histograms for the image.
+        Dictionary of the full and half histogram of the image. None if the image does not exist.
     """
     # Convert the PIL image to a numpy array
     image_np = np.array(image)
@@ -108,7 +107,7 @@ def calculate_hist_img(image: Image) -> list[dict]:
     return histograms
 
 
-def draw_bounding_boxes(image: np.ndarray, mask_tensor: torch.Tensor):
+def draw_bounding_boxes(image: np.ndarray, mask_tensor: torch.Tensor) -> np.ndarray:
     """
     Draws bounding boxes around detected objects based on the mask tensor on the provided image.
 
@@ -119,18 +118,17 @@ def draw_bounding_boxes(image: np.ndarray, mask_tensor: torch.Tensor):
     Returns:
         numpy.ndarray: The original image with bounding boxes drawn around detected objects.
     """
-    # Ensure the mask is a NumPy array. If it's a tensor, convert it.
+    # Convert mask from numpy array to tensor if needed
     if isinstance(mask_tensor, torch.Tensor):
         mask = mask_tensor.cpu().numpy()  # Ensure it's on CPU and convert to NumPy
     else:
         mask = mask_tensor
 
-    # The mask might come in various shapes, e.g., (1, H, W), (H, W), or (H, W, C).
-    # We need to ensure it's in the shape (H, W) for cv.findContours.
+    # Ensure mask is in the shape (H, W) for cv.findContours
     if len(mask.shape) > 2:
-        mask = mask.squeeze()  # Converts (1, H, W) or similar to (H, W).
+        mask = mask.squeeze()
 
-    # Convert mask to binary in case it's not already. Assuming object pixels are > 0.
+    # Convert mask to binary assuming object pixels are > 0
     mask_binary = np.where(mask > 0, 255, 0).astype(np.uint8)
 
     # Find contours from the binary mask
@@ -146,7 +144,20 @@ def draw_bounding_boxes(image: np.ndarray, mask_tensor: torch.Tensor):
     return image
 
 
-def fit_to_person(person_image):
+def fit_to_person(person_image: Image) -> Image:
+    """
+    Fits the full original image size to the person's size.
+
+    After only retaining the mask of the person and making everything else in the
+    image turn black, we want to now fit the image to the person's height and width.
+    This function returns a new image where it is fitted to the person's size.
+
+    Args:
+        person_image: image after keeping only the contents inside the mask
+
+    Returns:
+        Image fitted to the person's size.
+    """
     # Convert image to grayscale
     person_image_gray = person_image.convert("L")
 
@@ -181,6 +192,7 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
     Returns:
         List of PIL.Image: A list of image objects, each containing a person extracted from the original image.
     """
+    # --- Steps ---
     # Get OG image and all masks.
     # Apply each mask on the image and extracted each person out as their own image
     # We fit the size of each image to the height/width of each person
@@ -211,26 +223,23 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
             # Convert image to image gray
             tmp = cv.cvtColor(person_image, cv.COLOR_BGR2GRAY)
 
-            # Applying thresholding technique
+            # Apply thresholding
             _, alpha = cv.threshold(tmp, 0, 255, cv.THRESH_BINARY)
 
-            # Using cv2.split() to split channels
-            # of coloured image
+            # Use cv2.split() to split channels of coloured image
             b, g, r = cv.split(person_image)
 
-            # Making list of Red, Green, Blue
-            # Channels and alpha
+            # Make list of RGB Channels and alpha
             rgba = [b, g, r, alpha]
 
-            # Using cv2.merge() to merge rgba
-            # into a coloured/multi-channeled image
+            # Merge rgba into a coloured/multi-channeled image
             dst = cv.merge(rgba, 4)
             image = Image.fromarray(dst.astype("uint8"))
 
-            # exit()
             people_images.append({"person_image": image, "mask": mask})
 
     return people_images
+
 
 def save_100_images(best_100_matches: list, person_name: str):
     """
@@ -238,29 +247,31 @@ def save_100_images(best_100_matches: list, person_name: str):
     100 best matching frame images as PNG files stored in the folder.
 
     Args:
-        data: resulting list of the best 100 matching frames after HSV histogram comparison
+        best_100_matches: list of the best 100 matching frames after HSV histogram comparison
+                          tuple(image_name, image, comparison_value)
+        person_name: name of the person image (e.g. person_1)
     """
     output_folder = os.path.join("examples/100_best/cam0/", str(person_name))
     os.makedirs(output_folder, exist_ok=True)
 
     for match in best_100_matches:
-        image = match[1]
-        image_name = match[0]
-   
+        image: Image = match[1]
+        image_name: str = match[0]
 
         # Save the rectangle as a PNG image
         output_file = os.path.join(output_folder, image_name)
-
         image.save(output_file)
 
 
-def find_100_best_matches(person: list[dict], person_name: str, folder_name: str):
+def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str):
     """
-    Finds the 100 image frames from 1000+ test image files (8600+ labelled frames) that
-    best match a given person's test image frame. Saves the results to a results folder.
+    Finds the 100 image frames from the given image frames that best match a given person's
+    test image frame. Saves the results to a results folder.
 
     Args:
-        data: resulting list of the best 100 matching frames after HSV histogram comparison
+        person_hist: HSV histogram of the given person test image
+        person_name: name of the person (e.g.: person_1)
+        folder_name: name of the cam0, cam1 folders
     """
 
     source_path_dir = f"images/{folder_name}"
@@ -304,16 +315,16 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
 
             for hist in all_histograms:
                 full_full = cv.compareHist(
-                    person["full"], hist["full"], cv.HISTCMP_CORREL
+                    person_hist["full"], hist["full"], cv.HISTCMP_CORREL
                 )
                 full_half = cv.compareHist(
-                    person["full"], hist["half"], cv.HISTCMP_CORREL
+                    person_hist["full"], hist["half"], cv.HISTCMP_CORREL
                 )
                 half_full = cv.compareHist(
-                    person["half"], hist["full"], cv.HISTCMP_CORREL
+                    person_hist["half"], hist["full"], cv.HISTCMP_CORREL
                 )
                 half_half = cv.compareHist(
-                    person["half"], hist["half"], cv.HISTCMP_CORREL
+                    person_hist["half"], hist["half"], cv.HISTCMP_CORREL
                 )
                 max_comparison.append(max(full_full, full_half, half_full, half_half))
 
@@ -335,7 +346,7 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
             img_bounding_box.save(
                 os.path.join(f"{output_path_dir}/{person_name}", image_name)
             )
-            top_100_best.append((image_name,img_bounding_box, max_in_image))
+            top_100_best.append((image_name, img_bounding_box, max_in_image))
             # result.show()
             # img_with_bounding_box.show()
 
