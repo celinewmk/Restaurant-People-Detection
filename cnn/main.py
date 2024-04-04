@@ -252,7 +252,6 @@ def save_100_images(best_100_matches: list, person_name: str):
 
         # Save the rectangle as a PNG image
         output_file = os.path.join(output_folder, image_name)
-        cv.imwrite(output_file, person_found)
 
         image.save(
             output_folder
