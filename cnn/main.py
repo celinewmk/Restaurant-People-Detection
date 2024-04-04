@@ -67,8 +67,8 @@ def calculate_hist_img_filename(image_filename: str) -> dict[str, cv.typing.MatL
     person_half = image[start_row:end_row, start_col:end_col]
 
     histograms = {
-        "full": get_normalized_hsv_histogram(person_full),
-        "half": get_normalized_hsv_histogram(person_half),
+        "full": get_rgb_histogram(person_full),
+        "half": get_rgb_histogram(person_half),
     }
 
     return histograms
@@ -100,8 +100,8 @@ def calculate_hist_img(image: Image) -> dict[str, cv.typing.MatLike]:
 
     # Calculate the histograms
     histograms = {
-        "full": get_normalized_hsv_histogram(person_full),
-        "half": get_normalized_hsv_histogram(person_half),
+        "full": get_rgba_histogram(person_full),
+        "half": get_rgba_histogram(person_half),
     }
 
     return histograms
@@ -213,7 +213,6 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
         person_image = fit_to_person(person_image)
 
         image_height = person_image.height
-        print("Image height: ", image_height)
 
         if image_height > 120:
             # ----- Remove black background from image
@@ -263,6 +262,39 @@ def save_100_images(best_100_matches: list, person_name: str):
         image.save(output_file)
 
 
+# =======================================================================
+def get_rgb_histogram(image):
+    
+    ranges = [0, 256, 0, 256, 0, 256]
+    b, g, r = cv.split(image)   
+    hist_rgb = cv.calcHist([image], [0, 1, 2], None, [8, 8, 8], ranges, accumulate=False)
+    cv.normalize(hist_rgb, hist_rgb, alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
+    
+    return hist_rgb
+
+def get_rgba_histogram(image):
+    
+    ranges = [0, 256, 0, 256, 0, 256]
+    b, g, r, a = cv.split(image)
+
+    # Create a mask for opaque regions (where alpha is not 0)
+    mask = (a > 0)
+
+    # Apply the mask to the RGB channels
+    b = b[mask]
+    g = g[mask]
+    r = r[mask]
+
+    # Combine the histograms for each channel using the predefined bins and ranges
+    hist_rgb = cv.calcHist([b, g, r], [0, 1, 2], None, [8, 8, 8], ranges, accumulate=False)
+    
+    # Normalize the histogram
+    cv.normalize(hist_rgb, hist_rgb, alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
+    
+    return hist_rgb
+# =======================================================================
+
+
 def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str):
     """
     Finds the 100 image frames from the given image frames that best match a given person's
@@ -280,7 +312,7 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
     counter = 0
     top_100_best = []
     for file in os.listdir(source_path_dir):
-        if file.endswith(".png") and counter < 1:
+        if file.endswith(".png"):
             counter += 1
             # image_name = file
             image_name = file
@@ -332,23 +364,25 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
             max_in_image = max(max_comparison)
             print(f"-- {max_in_image}")
 
-            best_person = people_imgs[max_comparison.index(max_in_image)]
-            # best_person["mask"]
-            # best_person["person_image"].show()
+            if max_in_image > 0.85:
 
-            # image.show()
-            img_bounding_box_np = draw_bounding_boxes(
-                np.array(image), best_person["mask"]
-            )
-            img_bounding_box = Image.fromarray(img_bounding_box_np.astype(np.uint8))
-            if not os.path.exists(f"{output_path_dir}/{person_name}"):
-                os.makedirs(f"{output_path_dir}/{person_name}")
-            img_bounding_box.save(
-                os.path.join(f"{output_path_dir}/{person_name}", image_name)
-            )
-            top_100_best.append((image_name, img_bounding_box, max_in_image))
-            # result.show()
-            # img_with_bounding_box.show()
+                best_person = people_imgs[max_comparison.index(max_in_image)]
+                # best_person["mask"]
+                # best_person["person_image"].show()
+
+                # image.show()
+                img_bounding_box_np = draw_bounding_boxes(
+                    np.array(image), best_person["mask"]
+                )
+                img_bounding_box = Image.fromarray(img_bounding_box_np.astype(np.uint8))
+                if not os.path.exists(f"{output_path_dir}/{person_name}"):
+                    os.makedirs(f"{output_path_dir}/{person_name}")
+                img_bounding_box.save(
+                    os.path.join(f"{output_path_dir}/{person_name}", image_name)
+                )
+                top_100_best.append((image_name, img_bounding_box, max_in_image))
+                # result.show()
+                # img_with_bounding_box.show()
 
         else:
             break
