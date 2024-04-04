@@ -226,14 +226,37 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
         # Using cv2.merge() to merge rgba
         # into a coloured/multi-channeled image
         dst = cv.merge(rgba, 4)
-        bob = Image.fromarray(dst.astype("uint8"))
+        image = Image.fromarray(dst.astype("uint8"))
 
-        # bob.show()
         # exit()
 
-        people_images.append({"person_image": bob, "mask": mask})
+        people_images.append({"person_image": image, "mask": mask})
 
     return people_images
+
+def save_100_images(best_100_matches: list, person_name: str):
+    """
+    Creates a "results" folder in the project directory and saves the resulting
+    100 best matching frame images as PNG files stored in the folder.
+
+    Args:
+        data: resulting list of the best 100 matching frames after HSV histogram comparison
+    """
+    output_folder = os.path.join("examples/results/cam0/", f"{str(person_name)}_100_best")
+    os.makedirs(output_folder, exist_ok=True)
+
+    for match in best_100_matches:
+        image = match[1]
+        image_name = match[0]
+   
+
+        # Save the rectangle as a PNG image
+        output_file = os.path.join(output_folder, image_name)
+        cv.imwrite(output_file, person_found)
+
+        image.save(
+            output_folder
+        )
 
 
 def find_100_best_matches(person: list[dict], person_name: str, folder_name: str):
@@ -249,13 +272,12 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
     output_path_dir = f"examples/output/{folder_name}"
 
     counter = 0
-
+    top_100_best = []
     for file in os.listdir(source_path_dir):
-        if file.endswith(".png") and counter < 1:
+        if file.endswith(".png"):
             counter += 1
-
             # image_name = file
-            image_name = "1637433787672853500.png"
+            image_name = file
             print(f"===========================================================")
             print(f"Segmenting {counter}: {image_name}")
 
@@ -318,17 +340,19 @@ def find_100_best_matches(person: list[dict], person_name: str, folder_name: str
             img_bounding_box.save(
                 os.path.join(f"{output_path_dir}/{person_name}", image_name)
             )
+            top_100_best.append((image_name,img_bounding_box, max_in_image))
             # result.show()
             # img_with_bounding_box.show()
 
         else:
             break
 
+    sorted_data = sorted(top_100_best, key=lambda x: x[1], reverse=True)
+    best_100_matches = sorted_data[:100]
+    save_100_images(top_100_best, person_name)
+
 
 if __name__ == "__main__":
-
-    image1_coords = [(232, 128, 70, 269), (375, 271, 156, 188), (333, 136, 85, 219)]
-    image2_coords = [(463, 251, 112, 206), (321, 269, 123, 189)]
     test_image_filenames = [
         "images/person_1.png",
         "images/person_2.png",
@@ -345,7 +369,7 @@ if __name__ == "__main__":
         calculate_hist_img_filename(test_image_filenames[3]),
         calculate_hist_img_filename(test_image_filenames[4]),
     ]
-
+    # find_100_best_matches(histograms[0], f"person_{1}", "cam1")
     for i in range(0, 5):
         print(f"[+] Calculating results for person {i+1}...")
         find_100_best_matches(histograms[i], f"person_{i+1}", "cam0")
