@@ -3,7 +3,7 @@ import numpy as np
 import os
 import torch
 from PIL import Image
-from utils import tools
+from utils import model, tools
 
 
 def read_image_if_exists(file_path: str) -> cv.typing.MatLike:
@@ -363,6 +363,7 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
 
             # print(f"MAX COMPARISON: {max_comparison}")
             max_in_image = max(max_comparison)
+            print(max_in_image)
             # print(f"-- {max_in_image}")
 
             if max_in_image > 0.85:
@@ -393,13 +394,51 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
 
 if __name__ == "__main__":
 
+    # test_image_filenames = [
+    #     "images/person_1.png",
+    #     "images/person_2.png",
+    #     "images/person_3.png",
+    #     "images/person_4.png",
+    #     "images/person_5.png",
+    # ]
+
     test_image_filenames = [
-        "images/person_1.png",
-        "images/person_2.png",
-        "images/person_3.png",
-        "images/person_4.png",
-        "images/person_5.png",
+        "images/nobg_person_1.png",
+        "images/nobg_person_2.png",
+        "images/nobg_person_3.png",
+        "images/nobg_person_4.png",
+        "images/nobg_person_5.png",
     ]
+
+    # test_images_after_mask: list = []
+    # for img_filename in test_image_filenames:
+    #     # Charger le modèle et appliquer les transformations à l'image
+    #     seg_model, transforms = model.get_model()
+
+    #     # Ouvrir l'image et appliquer les transformations
+    #     image = Image.open(img_filename)
+    #     transformed_img = transforms(image.convert("RGB"))
+
+    #     # Effectuer l'inférence sur l'image transformée sans calculer les gradients
+    #     with torch.no_grad():
+    #         output = seg_model([transformed_img])
+
+    #     masks = tools.process_inference(output, image)
+    #     ppl = extract_people_from_masks(image, masks)
+    #     # print(f"LEN PPLl {len(ppl)}")
+    #     for person in ppl:
+    #         person["person_image"].show()
+    #     test_images_after_mask.append(ppl[0]["person_image"])
+    #     # pic.show()
+    # # exit()
+
+    # histograms = [
+    #     calculate_hist_img(test_images_after_mask[0]),
+    #     calculate_hist_img(test_images_after_mask[1]),
+    #     calculate_hist_img(test_images_after_mask[2]),
+    #     calculate_hist_img(test_images_after_mask[3]),
+    #     calculate_hist_img(test_images_after_mask[4]),
+    # ]
 
     # Calculate histogram of all the people to detect
     histograms = [
@@ -409,7 +448,7 @@ if __name__ == "__main__":
         calculate_hist_img_filename(test_image_filenames[3]),
         calculate_hist_img_filename(test_image_filenames[4]),
     ]
-    find_100_best_matches(histograms[0], f"person_{1}", "cam1")
+    find_100_best_matches(histograms[2], f"person_{3}", "cam0")
 
     # # cam0
     # for i in range(0, 5):
