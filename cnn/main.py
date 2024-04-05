@@ -241,7 +241,7 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
             # Merge rgba into a coloured/multi-channeled image
             dst = cv.merge(rgba, 4)
             image = Image.fromarray(dst.astype("uint8"))
-            image.show()
+            # image.show()
 
             people_images.append({"person_image": image, "mask": mask})
 
@@ -332,7 +332,7 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
             image_name_no_ext = remove_png_extension(image_name)
 
             result = tools.apply_saved_mask(image, image_name_no_ext, folder_name)
-            result.show()
+            # result.show()
             masks = tools.get_masks(image_name_no_ext, folder_name)
 
             people_imgs = extract_people_from_masks(image, masks)
