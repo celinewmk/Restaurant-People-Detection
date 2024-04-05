@@ -3,7 +3,7 @@ import numpy as np
 import os
 import torch
 from PIL import Image
-from utils import model, tools
+from utils import tools
 
 
 def read_image_if_exists(file_path: str) -> cv.typing.MatLike:
@@ -18,8 +18,18 @@ def read_image_if_exists(file_path: str) -> cv.typing.MatLike:
     """
     return cv.imread(file_path) if os.path.exists(file_path) else None
 
+
 def remove_png_extension(filename):
-    if filename.endswith('.png'):
+    """
+    Removes the png extension from the filename
+
+    Args:
+        filename: Name of the file
+
+    Returns:
+       The file name without the extension. Example: 1637433929433736400.png -> 1637433929433736400
+    """
+    if filename.endswith(".png"):
         return filename[:-4]
     else:
         return filename
@@ -46,6 +56,7 @@ def get_normalized_hsv_histogram(rectangle: cv.typing.MatLike) -> cv.typing.MatL
     hsv = cv.cvtColor(rectangle, cv.COLOR_BGR2HSV)
     histogram = cv.calcHist([hsv], [0], None, [256], [0, 256])
     return cv.normalize(histogram, histogram).flatten()
+
 
 def calculate_hist_img_filename(image_filename: str) -> dict[str, cv.typing.MatLike]:
     """
@@ -125,7 +136,7 @@ def draw_bounding_boxes(image: np.ndarray, mask_tensor: torch.Tensor) -> np.ndar
     """
     # Convert mask from numpy array to tensor if needed
     if isinstance(mask_tensor, torch.Tensor):
-        mask = mask_tensor.cpu().numpy()  # Ensure it's on CPU and convert to NumPy
+        mask = mask_tensor.cpu().numpy()
     else:
         mask = mask_tensor
 
@@ -141,10 +152,8 @@ def draw_bounding_boxes(image: np.ndarray, mask_tensor: torch.Tensor) -> np.ndar
 
     # Draw bounding boxes from contours on the original image
     for contour in contours:
-        # Calculate bounding box coordinates
         x, y, w, h = cv.boundingRect(contour)
-        # Draw rectangle on the image
-        cv.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Green boxes
+        cv.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
     return image
 
@@ -182,7 +191,6 @@ def fit_to_person(person_image: Image) -> Image:
 
         return new_image
     else:
-        # No person found in the image, return None
         return None
 
 
@@ -206,13 +214,9 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
     people_images: list[dict] = []
 
     for mask in masks:
-        # Make sure the mask is binary and has the same dimensions as the original image
-        # mask_binary = mask[0].cpu().numpy() > 0.5
-        # mask_binary = np.repeat(mask_binary[:, :, np.newaxis], 3, axis=2)
         mask_binary = mask > 0.5
 
         # Apply the mask to the original image
-        # person_cutout = np.where(mask_binary, original_image, 0)
         person_cutout = original_image * mask_binary[:, :, np.newaxis]
 
         # Convert the cutout to a PIL image
@@ -222,11 +226,9 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
         image_height = person_image.height
 
         if image_height > 120:
-            # ----- Remove black background from image
-            # Convert PIL image to NumPy array
+            # Remove black background from image
             person_image = np.array(person_image)
 
-            # Convert image to image gray
             tmp = cv.cvtColor(person_image, cv.COLOR_BGR2GRAY)
 
             # Apply thresholding
@@ -241,52 +243,33 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
             # Merge rgba into a coloured/multi-channeled image
             dst = cv.merge(rgba, 4)
             image = Image.fromarray(dst.astype("uint8"))
-            # image.show()
 
+            # Appends the image of the person after being extracted and its corresponding mask
             people_images.append({"person_image": image, "mask": mask})
 
     return people_images
 
 
-def save_100_images(best_100_matches: list, person_name: str):
-    """
-    Creates a "results" folder in the project directory and saves the resulting
-    100 best matching frame images as PNG files stored in the folder.
-
-    Args:
-        best_100_matches: list of the best 100 matching frames after HSV histogram comparison
-                          tuple(image_name, image, comparison_value)
-        person_name: name of the person image (e.g. person_1)
-    """
-    output_folder = os.path.join("examples/100_best/cam0/", str(person_name))
-    os.makedirs(output_folder, exist_ok=True)
-
-    for match in best_100_matches:
-        image: Image = match[1]
-        image_name: str = match[0]
-
-        # Save the rectangle as a PNG image
-        output_file = os.path.join(output_folder, image_name)
-        image.save(output_file)
-
-
 # =======================================================================
+# Credits to Selin's part 1 comparison methods
 def get_rgb_histogram(image):
-    
     ranges = [0, 256, 0, 256, 0, 256]
-    b, g, r = cv.split(image)   
-    hist_rgb = cv.calcHist([image], [0, 1, 2], None, [8, 8, 8], ranges, accumulate=False)
+    b, g, r = cv.split(image)
+    hist_rgb = cv.calcHist(
+        [image], [0, 1, 2], None, [8, 8, 8], ranges, accumulate=False
+    )
     cv.normalize(hist_rgb, hist_rgb, alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
-    
+
     return hist_rgb
 
+
 def get_rgba_histogram(image):
-    
+
     ranges = [0, 256, 0, 256, 0, 256]
     b, g, r, a = cv.split(image)
 
     # Create a mask for opaque regions (where alpha is not 0)
-    mask = (a > 0)
+    mask = a > 0
 
     # Apply the mask to the RGB channels
     b = b[mask]
@@ -294,19 +277,23 @@ def get_rgba_histogram(image):
     r = r[mask]
 
     # Combine the histograms for each channel using the predefined bins and ranges
-    hist_rgb = cv.calcHist([b, g, r], [0, 1, 2], None, [8, 8, 8], ranges, accumulate=False)
-    
+    hist_rgb = cv.calcHist(
+        [b, g, r], [0, 1, 2], None, [8, 8, 8], ranges, accumulate=False
+    )
+
     # Normalize the histogram
     cv.normalize(hist_rgb, hist_rgb, alpha=0, beta=1, norm_type=cv.NORM_MINMAX)
-    
+
     return hist_rgb
+
+
 # =======================================================================
 
 
-def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str):
+def detect_person(person_hist: dict, person_name: str, folder_name: str):
     """
-    Finds the 100 image frames from the given image frames that best match a given person's
-    test image frame. Saves the results to a results folder.
+    Detects the person given by person_hist in the images in the folder given.
+    Saves the results to a outputs folder.
 
     Args:
         person_hist: HSV histogram of the given person test image
@@ -315,85 +302,82 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
     """
 
     source_path_dir = f"images/{folder_name}"
-    output_path_dir = f"examples/output/{folder_name}"
-
+    output_path_dir = f"output/{folder_name}"
     counter = 0
-    # top_100_best = []
     for file in os.listdir(source_path_dir):
         if file.endswith(".png"):
             counter += 1
             image_name = file
+            print(f"[+] {counter} - Detecting {person_name} on image {image_name}...")
+
             image_path = os.path.join(source_path_dir, image_name)
-      
+
             image = Image.open(image_path)
-            print(f"===========================================================")
-            print(f"Segmenting {counter}: {image_name}")
 
             image_name_no_ext = remove_png_extension(image_name)
 
-            result = tools.apply_saved_mask(image, image_name_no_ext, folder_name)
-            # result.show()
+            # Get the masks of the image
             masks = tools.get_masks(image_name_no_ext, folder_name)
 
+            # Extract the people on the image using the masks
             people_imgs = extract_people_from_masks(image, masks)
 
             all_histograms: list = []
 
+            # Calculate the histograms of full and half image
             for person_img in people_imgs:
-                # person_img.show()
                 all_histograms.append(calculate_hist_img(person_img["person_image"]))
 
             # Max comparison value of the test person with all other people in the image
             max_comparison = []
 
+            # performs the 4 comparisons
             for hist in all_histograms:
                 full_full = cv.compareHist(
-                    person_hist["full"], hist["full"], cv.HISTCMP_CORREL
+                    person_hist["full"], hist["full"], cv.HISTCMP_BHATTACHARYYA
                 )
                 full_half = cv.compareHist(
-                    person_hist["full"], hist["half"], cv.HISTCMP_CORREL
+                    person_hist["full"], hist["half"], cv.HISTCMP_BHATTACHARYYA
                 )
                 half_full = cv.compareHist(
-                    person_hist["half"], hist["full"], cv.HISTCMP_CORREL
+                    person_hist["half"], hist["full"], cv.HISTCMP_BHATTACHARYYA
                 )
                 half_half = cv.compareHist(
-                    person_hist["half"], hist["half"], cv.HISTCMP_CORREL
+                    person_hist["half"], hist["half"], cv.HISTCMP_BHATTACHARYYA
                 )
                 max_comparison.append(max(full_full, full_half, half_full, half_half))
 
-            # print(f"MAX COMPARISON: {max_comparison}")
+            # we keep the max out of all the maximum found in the image
             max_in_image = max(max_comparison)
-            print(max_in_image)
-            # print(f"-- {max_in_image}")
 
-            if max_in_image > 0.85:
-
+            # if the comparison value is more than 0.6, we accept is as a match
+            # sometimes, the person found was the right person but the value was around the 0.6 - 0.7 range
+            # so that's why we chose 0.6
+            if max_in_image > 0.6:
+                # get the person that was the best match
                 best_person = people_imgs[max_comparison.index(max_in_image)]
-                # best_person["mask"]
-                # best_person["person_image"].show()
 
-                # image.show()
+                # draw a bounding box on the image using the mask
                 img_bounding_box_np = draw_bounding_boxes(
                     np.array(image), best_person["mask"]
                 )
+
+                # convert image
                 img_bounding_box = Image.fromarray(img_bounding_box_np.astype(np.uint8))
+
+                # saves the image with a bouding box drawn around the person detected
                 if not os.path.exists(f"{output_path_dir}/{person_name}"):
                     os.makedirs(f"{output_path_dir}/{person_name}")
                 img_bounding_box.save(
                     os.path.join(f"{output_path_dir}/{person_name}", image_name)
                 )
-                # top_100_best.append((image_name, img_bounding_box, max_in_image))
-
         else:
             break
-
-    # sorted_data = sorted(top_100_best, key=lambda x: x[2], reverse=True)
-    # best_100_matches = sorted_data[:100]
-    # save_100_images(best_100_matches, person_name)
 
 
 if __name__ == "__main__":
 
+    # Uncomment this to use the original person images
     # test_image_filenames = [
     #     "images/person_1.png",
     #     "images/person_2.png",
@@ -402,6 +386,7 @@ if __name__ == "__main__":
     #     "images/person_5.png",
     # ]
 
+    # Person images with the background removed
     test_image_filenames = [
         "images/nobg_person_1.png",
         "images/nobg_person_2.png",
@@ -409,36 +394,6 @@ if __name__ == "__main__":
         "images/nobg_person_4.png",
         "images/nobg_person_5.png",
     ]
-
-    # test_images_after_mask: list = []
-    # for img_filename in test_image_filenames:
-    #     # Charger le modèle et appliquer les transformations à l'image
-    #     seg_model, transforms = model.get_model()
-
-    #     # Ouvrir l'image et appliquer les transformations
-    #     image = Image.open(img_filename)
-    #     transformed_img = transforms(image.convert("RGB"))
-
-    #     # Effectuer l'inférence sur l'image transformée sans calculer les gradients
-    #     with torch.no_grad():
-    #         output = seg_model([transformed_img])
-
-    #     masks = tools.process_inference(output, image)
-    #     ppl = extract_people_from_masks(image, masks)
-    #     # print(f"LEN PPLl {len(ppl)}")
-    #     for person in ppl:
-    #         person["person_image"].show()
-    #     test_images_after_mask.append(ppl[0]["person_image"])
-    #     # pic.show()
-    # # exit()
-
-    # histograms = [
-    #     calculate_hist_img(test_images_after_mask[0]),
-    #     calculate_hist_img(test_images_after_mask[1]),
-    #     calculate_hist_img(test_images_after_mask[2]),
-    #     calculate_hist_img(test_images_after_mask[3]),
-    #     calculate_hist_img(test_images_after_mask[4]),
-    # ]
 
     # Calculate histogram of all the people to detect
     histograms = [
@@ -448,17 +403,15 @@ if __name__ == "__main__":
         calculate_hist_img_filename(test_image_filenames[3]),
         calculate_hist_img_filename(test_image_filenames[4]),
     ]
-    find_100_best_matches(histograms[2], f"person_{3}", "cam0")
 
-    # # cam0
-    # for i in range(0, 5):
-    #     print(f"[+] Calculating results for person {i+1}...")
-    #     find_100_best_matches(histograms[i], f"person_{i+1}", "cam0")
+    # cam0
+    print("====================== CAM0 ======================")
+    for i in range(0, 5):
+        print(f"[+] Calculating results for person {i+1}...")
+        detect_person(histograms[i], f"person_{i+1}", "cam0")
 
-    # # cam1
-    # for i in range(0, 5):
-    #     print(f"[+] Calculating results for person {i+1}...")
-    #     find_100_best_matches(histograms[i], f"person_{i+1}", "cam1")
-
-    
-
+    print("====================== CAM1 ======================")
+    # cam1
+    for i in range(0, 5):
+        print(f"[+] Calculating results for person {i+1}...")
+        detect_person(histograms[i], f"person_{i+1}", "cam1")
