@@ -3,7 +3,7 @@ import numpy as np
 import os
 import torch
 from PIL import Image
-from utils import model, tools
+from utils import tools
 
 
 def read_image_if_exists(file_path: str) -> cv.typing.MatLike:
@@ -17,6 +17,12 @@ def read_image_if_exists(file_path: str) -> cv.typing.MatLike:
         The OpenCV-parsed image, if the file exists. Otherwise, returns None.
     """
     return cv.imread(file_path) if os.path.exists(file_path) else None
+
+def remove_png_extension(filename):
+    if filename.endswith('.png'):
+        return filename[:-4]
+    else:
+        return filename
 
 
 def get_normalized_hsv_histogram(rectangle: cv.typing.MatLike) -> cv.typing.MatLike:
@@ -40,7 +46,6 @@ def get_normalized_hsv_histogram(rectangle: cv.typing.MatLike) -> cv.typing.MatL
     hsv = cv.cvtColor(rectangle, cv.COLOR_BGR2HSV)
     histogram = cv.calcHist([hsv], [0], None, [256], [0, 256])
     return cv.normalize(histogram, histogram).flatten()
-
 
 def calculate_hist_img_filename(image_filename: str) -> dict[str, cv.typing.MatLike]:
     """
@@ -202,11 +207,13 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
 
     for mask in masks:
         # Make sure the mask is binary and has the same dimensions as the original image
-        mask_binary = mask[0].cpu().numpy() > 0.5
-        mask_binary = np.repeat(mask_binary[:, :, np.newaxis], 3, axis=2)
+        # mask_binary = mask[0].cpu().numpy() > 0.5
+        # mask_binary = np.repeat(mask_binary[:, :, np.newaxis], 3, axis=2)
+        mask_binary = mask > 0.5
 
         # Apply the mask to the original image
-        person_cutout = np.where(mask_binary, original_image, 0)
+        # person_cutout = np.where(mask_binary, original_image, 0)
+        person_cutout = original_image * mask_binary[:, :, np.newaxis]
 
         # Convert the cutout to a PIL image
         person_image = Image.fromarray(person_cutout.astype("uint8"))
@@ -234,6 +241,7 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
             # Merge rgba into a coloured/multi-channeled image
             dst = cv.merge(rgba, 4)
             image = Image.fromarray(dst.astype("uint8"))
+            image.show()
 
             people_images.append({"person_image": image, "mask": mask})
 
@@ -310,31 +318,24 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
     output_path_dir = f"examples/output/{folder_name}"
 
     counter = 0
-    top_100_best = []
+    # top_100_best = []
     for file in os.listdir(source_path_dir):
         if file.endswith(".png"):
             counter += 1
-            # image_name = file
             image_name = file
+            image_path = os.path.join(source_path_dir, image_name)
+      
+            image = Image.open(image_path)
             print(f"===========================================================")
             print(f"Segmenting {counter}: {image_name}")
 
-            # Charger le modèle et appliquer les transformations à l'image
-            seg_model, transforms = model.get_model()
+            image_name_no_ext = remove_png_extension(image_name)
 
-            # Ouvrir l'image et appliquer les transformations
-            image_path = os.path.join(source_path_dir, image_name)
-            image = Image.open(image_path)
-            transformed_img = transforms(image)
+            result = tools.apply_saved_mask(image, image_name_no_ext, folder_name)
+            result.show()
+            masks = tools.get_masks(image_name_no_ext, folder_name)
 
-            # Effectuer l'inférence sur l'image transformée sans calculer les gradients
-            with torch.no_grad():
-                output = seg_model([transformed_img])
-
-            # Traiter le résultat de l'inférence
-            # result = tools.process_inference(output, image)
-            list_of_masks: list = tools.process_inference(output, image)
-            people_imgs = extract_people_from_masks(image, list_of_masks)
+            people_imgs = extract_people_from_masks(image, masks)
 
             all_histograms: list = []
 
@@ -360,9 +361,9 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
                 )
                 max_comparison.append(max(full_full, full_half, half_full, half_half))
 
-            print(f"MAX COMPARISON: {max_comparison}")
+            # print(f"MAX COMPARISON: {max_comparison}")
             max_in_image = max(max_comparison)
-            print(f"-- {max_in_image}")
+            # print(f"-- {max_in_image}")
 
             if max_in_image > 0.85:
 
@@ -380,19 +381,18 @@ def find_100_best_matches(person_hist: dict, person_name: str, folder_name: str)
                 img_bounding_box.save(
                     os.path.join(f"{output_path_dir}/{person_name}", image_name)
                 )
-                top_100_best.append((image_name, img_bounding_box, max_in_image))
-                # result.show()
-                # img_with_bounding_box.show()
+                # top_100_best.append((image_name, img_bounding_box, max_in_image))
 
         else:
             break
 
-    sorted_data = sorted(top_100_best, key=lambda x: x[1], reverse=True)
-    best_100_matches = sorted_data[:100]
-    save_100_images(best_100_matches, person_name)
+    # sorted_data = sorted(top_100_best, key=lambda x: x[2], reverse=True)
+    # best_100_matches = sorted_data[:100]
+    # save_100_images(best_100_matches, person_name)
 
 
 if __name__ == "__main__":
+
     test_image_filenames = [
         "images/person_1.png",
         "images/person_2.png",
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         "images/person_5.png",
     ]
 
-    # Calculate histogram of everyone in image
+    # Calculate histogram of all the people to detect
     histograms = [
         calculate_hist_img_filename(test_image_filenames[0]),
         calculate_hist_img_filename(test_image_filenames[1]),
@@ -409,34 +409,17 @@ if __name__ == "__main__":
         calculate_hist_img_filename(test_image_filenames[3]),
         calculate_hist_img_filename(test_image_filenames[4]),
     ]
-    # find_100_best_matches(histograms[0], f"person_{1}", "cam1")
-    for i in range(0, 5):
-        print(f"[+] Calculating results for person {i+1}...")
-        find_100_best_matches(histograms[i], f"person_{i+1}", "cam0")
+    find_100_best_matches(histograms[0], f"person_{1}", "cam1")
 
-    # print(f"[+] Calculating results for person 2...")
-    # find_100_best_matches(histograms1[1], "person_with_cap_img1")
+    # # cam0
+    # for i in range(0, 5):
+    #     print(f"[+] Calculating results for person {i+1}...")
+    #     find_100_best_matches(histograms[i], f"person_{i+1}", "cam0")
 
-    # print(f"[+] Calculating results for person in pink...")
-    # find_100_best_matches(
-    #     histograms1[2], "person_in_pink_img1"
-    # )  # person in pink jacket
+    # # cam1
+    # for i in range(0, 5):
+    #     print(f"[+] Calculating results for person {i+1}...")
+    #     find_100_best_matches(histograms[i], f"person_{i+1}", "cam1")
 
-    # print(
-    #     f"The 100 best matches have been found for each person in image 1 (1636738315284889400.png).\nPlease see results folder"
-    # )
+    
 
-    # print(f"======================= Image 2 ====================")
-    # print(f"[+] Calculating results for person in pink...")
-    # find_100_best_matches(
-    #     histograms2[0], "person_in_pink_img2"
-    # )  # person in pink jacket
-
-    # print(f"[+] Calculating results for person in black...")
-    # find_100_best_matches(
-    #     histograms2[1], "person_in_black_img2"
-    # )  # person in black jacket
-
-    # print(
-    #     f"The 100 best matches have been found for each person in image 2 (1636738357390407600.png).\nPlease see results folder"
-    # )

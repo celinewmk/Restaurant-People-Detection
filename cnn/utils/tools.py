@@ -1,5 +1,4 @@
 import numpy as np
-import os
 from utils.config import THRESHOLD, PERSON_LABEL, MASK_COLOR, ALPHA
 from PIL import Image
 from torch import Tensor
@@ -36,11 +35,11 @@ def process_inference(model_output, image):
     # return Image.fromarray(img_np.astype(np.uint8))
     return masks_retenus
 
-def apply_saved_mask(image):
+def apply_saved_mask(image, image_name, folder_name):
 
     # Convertir l'image en tableau numpy
     img_np = np.array(image)
-    masks = np.load('examples/output/saved_masks.npy')
+    masks = np.load(f'saved_masks/{folder_name}/{image_name}.npy')
     # Parcourir chaque prédiction pour appliquer le seuil et le label
     for i, mask in enumerate(masks):  
         for c in range(3):
@@ -50,3 +49,7 @@ def apply_saved_mask(image):
     
     # Convertir en image à partir d'un tableau numpy et le renvoyer            
     return Image.fromarray(img_np.astype(np.uint8))
+
+def get_masks(image_name, folder_name):
+    masks = np.load(f'saved_masks/{folder_name}/{image_name}.npy')
+    return masks
