@@ -251,7 +251,7 @@ def extract_people_from_masks(original_image, masks) -> list[dict]:
 
 
 # =======================================================================
-# Credits to Selin's part 1 comparison methods
+# Credits to Selin Kararmaz's part 1 comparison methods
 def get_rgb_histogram(image):
     ranges = [0, 256, 0, 256, 0, 256]
     b, g, r = cv.split(image)
