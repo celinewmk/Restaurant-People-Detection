@@ -72,10 +72,10 @@ Our goal is to detect each of the 5 people the camera footage.
 ### Methodology
 - Figure detection
     - First, we detect the exact figure of each person using a CNN model. This is much more accurate than using the bounding box method from part 1 of the project.
-- HSV histogram conversion
-    - Once we have the exact cutouts of each person, we represent their full body and the upper half of their body with normalized HSV histograms.
+- RGB histogram conversion
+    - Once we have the exact cutouts of each person, we represent their full body and the upper half of their body with normalized RGB histograms.
 - Person detection
-    - We detect each of the 5 given people in the camera footage frames by comparing their HSV histograms with the HSV histograms of every recognized figure/person in the camera footage.
+    - We detect each of the 5 given people in the camera footage frames by comparing their RGB histograms with the RGB histograms of every recognized figure/person in the camera footage.
  
 ### Output
 The following is an example of Person 1 (on the left) being detected in the image `1637433787672853500.png` (on the right).
